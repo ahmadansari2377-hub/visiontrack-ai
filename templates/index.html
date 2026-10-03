@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VisionTrack AI</title>
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161b22; --panel2: #1f2630; --line: #2d3540;
+    --text: #e6edf3; --muted: #8b949e; --accent: #2f81f7; --good: #3fb950;
+    --warn: #d29922; --bad: #f85149; --yellow: #ffd33d;
+    --car: #28aaff; --motorcycle: #ffc83c; --bus: #ff5050; --truck: #dc5ac8;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 14px/1.45 "Segoe UI", system-ui, -apple-system, sans-serif; }
+  header { display: flex; align-items: center; gap: 14px; padding: 12px 20px;
+           border-bottom: 1px solid var(--line); background: var(--panel); flex-wrap: wrap; }
+  header h1 { font-size: 18px; margin: 0; letter-spacing: .3px; }
+  header h1 span { color: var(--accent); }
+  .pill { padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600;
+          background: var(--panel2); border: 1px solid var(--line); white-space: nowrap; }
+  .pill.running { color: var(--good); border-color: #238636; }
+  .pill.loading, .pill.paused, .pill.starting { color: var(--warn); border-color: #9e6a03; }
+  .pill.error, .pill.offline { color: var(--bad); border-color: #da3633; }
+  .spacer { flex: 1; }
+  .hdr-metric { color: var(--muted); font-size: 12px; }
+  .hdr-metric b { color: var(--text); font-size: 14px; }
+
+  main { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 16px; padding: 16px 20px; }
+  @media (max-width: 1100px) { main { grid-template-columns: 1fr; } }
+
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
+  .card h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .8px; color: var(--muted);
+             margin: 0 0 10px; font-weight: 600; }
+
+  .video-wrap { position: relative; background: #000; border-radius: 8px; overflow: hidden;
+                line-height: 0; }
+  .video-wrap img { width: 100%; height: auto; display: block; user-select: none; }
+  .video-wrap svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  .video-wrap.setting { cursor: crosshair; outline: 2px dashed var(--yellow); }
+  .banner { position: absolute; left: 12px; right: 12px; top: 12px; padding: 10px 14px; border-radius: 8px;
+            background: rgba(248,81,73,.92); color: #fff; line-height: 1.4; display: none; font-weight: 600; }
+  .banner.info { background: rgba(47,129,247,.92); }
+
+  .toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; align-items: center; }
+  button, select, input[type=text] {
+    background: var(--panel2); color: var(--text); border: 1px solid var(--line);
+    border-radius: 7px; padding: 7px 12px; font: inherit; }
+  button { cursor: pointer; font-weight: 600; }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.active { background: var(--yellow); color: #111; border-color: var(--yellow); }
+  button:disabled { opacity: .5; cursor: default; }
+  .hint { color: var(--muted); font-size: 12px; }
+
+  .totals { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .stat { background: var(--panel2); border-radius: 8px; padding: 10px; text-align: center; }
+  .stat .v { font-size: 26px; font-weight: 700; }
+  .stat .l { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .6px; }
+
+  table { width: 100%; border-collapse: collapse; }
+  th, td { padding: 7px 4px; text-align: right; border-bottom: 1px solid var(--line); }
+  th:first-child, td:first-child { text-align: left; }
+  th { color: var(--muted); font-weight: 600; font-size: 12px; }
+  .dot { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 7px; }
+  td.num { font-variant-numeric: tabular-nums; }
+
+  .perf { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; font-size: 13px; }
+  .perf div { display: flex; justify-content: space-between; }
+  .perf span { color: var(--muted); }
+
+  .field { margin-bottom: 12px; }
+  .field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 5px; }
+  .field .row { display: flex; gap: 6px; }
+  .field .row > * { flex: 1; min-width: 0; }
+  .field .row > button { flex: 0 0 auto; }
+  input[type=file] { color: var(--muted); font: inherit; }
+  input[type=file]::file-selector-button { background: var(--panel2); color: var(--text); border: 1px solid var(--line);
+    border-radius: 7px; padding: 7px 12px; margin-right: 10px; font: inherit; font-weight: 600; cursor: pointer; }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  .progress { height: 6px; background: var(--panel2); border-radius: 3px; overflow: hidden; display: none; margin-top: 6px; }
+  .progress i { display: block; height: 100%; width: 0; background: var(--accent); }
+
+  .events { max-height: 260px; overflow-y: auto; font-size: 13px; }
+  .ev { display: flex; gap: 8px; padding: 5px 0; border-bottom: 1px solid var(--line); align-items: center; }
+  .ev .t { color: var(--muted); font-variant-numeric: tabular-nums; width: 64px; }
+  .ev .d { margin-left: auto; font-weight: 700; font-size: 11px; padding: 1px 7px; border-radius: 4px; }
+  .ev .d.in { background: rgba(63,185,80,.18); color: var(--good); }
+  .ev .d.out { background: rgba(47,129,247,.18); color: #79c0ff; }
+  .empty { color: var(--muted); font-size: 13px; padding: 6px 0; }
+  .side { display: flex; flex-direction: column; gap: 16px; }
+  #toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--panel2);
+           border: 1px solid var(--line); padding: 10px 16px; border-radius: 8px; display: none; z-index: 9; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Vision<span>Track</span> AI</h1>
+  <span id="status" class="pill starting">Starting</span>
+  <div class="spacer"></div>
+  <div class="hdr-metric">Processing <b id="h-fps">0</b> fps</div>
+  <div class="hdr-metric">Video <b id="h-vfps">0</b> fps</div>
+  <div class="hdr-metric">Frames analysed <b id="h-pct">100</b>%</div>
+  <div class="hdr-metric">Model <b id="h-ms">0</b> ms</div>
+</header>
+
+<main>
+  <section>
+    <div class="card">
+      <div class="video-wrap" id="vwrap">
+        <img id="feed" src="/video_feed" alt="Live detection feed">
+        <svg id="overlay" viewBox="0 0 1 1" preserveAspectRatio="none"></svg>
+        <div class="banner" id="banner"></div>
+      </div>
+      <div class="toolbar">
+        <button id="btn-pause">Pause</button>
+        <button id="btn-line">Set counting line</button>
+        <button id="btn-reset">Reset counts</button>
+        <a href="/api/export.csv"><button type="button">Download CSV</button></a>
+        <a href="/snapshot.jpg" download="visiontrack_snapshot.jpg"><button type="button">Snapshot</button></a>
+        <span class="hint" id="line-hint"></span>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <h2>Recent crossings</h2>
+      <div class="events" id="events"><div class="empty">No vehicles have crossed the line yet.</div></div>
+    </div>
+  </section>
+
+  <aside class="side">
+    <div class="card">
+      <h2>Vehicle count</h2>
+      <div class="totals">
+        <div class="stat"><div class="v" id="t-total">0</div><div class="l">Total</div></div>
+        <div class="stat"><div class="v" id="t-in" style="color:var(--good)">0</div><div class="l">In</div></div>
+        <div class="stat"><div class="v" id="t-out" style="color:#79c0ff">0</div><div class="l">Out</div></div>
+      </div>
+      <table style="margin-top:10px">
+        <thead><tr><th>Type</th><th>In</th><th>Out</th><th>Total</th></tr></thead>
+        <tbody id="class-rows"></tbody>
+      </table>
+      <div class="perf" style="margin-top:10px">
+        <div><span>On screen now</span><b id="p-active">0</b></div>
+        <div><span>Vehicles seen</span><b id="p-unique">0</b></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Detection settings</h2>
+      <div class="field">
+        <label for="mode">Model (speed vs accuracy)</label>
+        <select id="mode" style="width:100%">
+          {% for key, m in modes.items() %}<option value="{{ key }}">{{ m.label }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label for="conf">Confidence threshold: <b id="conf-val">0.30</b></label>
+        <input type="range" id="conf" min="0.10" max="0.70" step="0.05" value="0.30">
+        <div class="hint">Lower = catches more vehicles (may add false boxes). Higher = stricter.</div>
+      </div>
+      <div class="perf">
+        <div style="grid-column:1/-1;gap:12px"><span>Engine</span><b id="p-backend" style="text-align:right">-</b></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Video source</h2>
+      <div class="field">
+        <label for="videos">Saved videos</label>
+        <div class="row">
+          <select id="videos">
+            {% for v in videos %}<option value="{{ v }}">{{ v }}</option>{% endfor %}
+            {% if not videos %}<option value="">(none yet - upload one)</option>{% endif %}
+          </select>
+          <button id="btn-use">Play</button>
+        </div>
+      </div>
+      <div class="field">
+        <label for="file">Upload a video (MP4, AVI, MOV, MKV)</label>
+        <input type="file" id="file" accept="video/*" style="width:100%">
+        <div class="progress" id="prog"><i></i></div>
+      </div>
+      <div class="field">
+        <label for="live">Webcam or stream (0 = built-in webcam, or rtsp://...)</label>
+        <div class="row">
+          <input type="text" id="live" placeholder="0">
+          <button id="btn-live">Connect</button>
+        </div>
+      </div>
+      <div class="hint" id="cur-src"></div>
+    </div>
+  </aside>
+</main>
+<div id="toast"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const COLORS = {car: 'var(--car)', motorcycle: 'var(--motorcycle)', bus: 'var(--bus)', truck: 'var(--truck)'};
+const LABELS = {car: 'Cars', motorcycle: 'Motorcycles', bus: 'Buses', truck: 'Trucks'};
+let state = {}, settingLine = false, linePts = [], confTimer = null, offlineSince = null;
+
+function toast(msg, ms = 2800) {
+  const t = $('toast'); t.textContent = msg; t.style.display = 'block';
+  clearTimeout(toast._t); toast._t = setTimeout(() => t.style.display = 'none', ms);
+}
+
+async function post(url, body) {
+  try {
+    const r = await fetch(url, {method: 'POST', headers: {'Content-Type': 'application/json'},
+                                body: JSON.stringify(body || {})});
+    const j = await r.json();
+    if (!j.ok) toast('Error: ' + j.error, 4000);
+    return j;
+  } catch (e) { toast('Server not reachable'); return {ok: false}; }
+}
+
+function drawLine(pts, preview) {
+  const svg = $('overlay');
+  if (!pts || pts.length < 2) { svg.innerHTML = ''; return; }
+  const [x1, y1, x2, y2] = pts;
+  svg.innerHTML = preview
+    ? `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#ffd33d" stroke-width="0.006"
+             stroke-dasharray="0.02 0.01" vector-effect="non-scaling-stroke" style="stroke-width:3px"/>`
+    : '';
+}
+
+function render(s) {
+  state = s;
+  const st = $('status');
+  const txt = {running: 'Running', loading: 'Loading model', paused: 'Paused', error: 'Problem', starting: 'Starting', waiting: 'Waiting'};
+  st.className = 'pill ' + s.status; st.textContent = txt[s.status] || s.status;
+
+  const banner = $('banner');
+  if (s.error) { banner.textContent = s.error; banner.className = 'banner' + (s.status === 'loading' ? ' info' : ''); banner.style.display = 'block'; }
+  else banner.style.display = 'none';
+
+  $('h-fps').textContent = s.processing_fps.toFixed(1);
+  $('h-vfps').textContent = s.video_fps.toFixed(0);
+  $('h-pct').textContent = Math.round(s.frames_analysed_pct);
+  $('h-ms').textContent = Math.round(s.inference_ms);
+  $('t-total').textContent = s.total; $('t-in').textContent = s.total_in; $('t-out').textContent = s.total_out;
+  $('p-active').textContent = s.active_tracks; $('p-unique').textContent = s.unique_vehicles;
+  $('p-backend').textContent = s.backend;
+  $('btn-pause').textContent = s.paused ? 'Resume' : 'Pause';
+  $('cur-src').textContent = 'Now playing: ' + s.source;
+
+  $('class-rows').innerHTML = Object.entries(s.counts).map(([k, c]) =>
+    `<tr><td><span class="dot" style="background:${COLORS[k]}"></span>${LABELS[k]}</td>
+     <td class="num">${c.in}</td><td class="num">${c.out}</td><td class="num"><b>${c.total}</b></td></tr>`).join('');
+
+  if (document.activeElement !== $('mode')) $('mode').value = s.mode;
+  if (document.activeElement !== $('conf') && !confTimer) {
+    $('conf').value = s.confidence; $('conf-val').textContent = Number(s.confidence).toFixed(2);
+  }
+
+  $('events').innerHTML = s.events.length ? s.events.map(e =>
+    `<div class="ev"><span class="t">${e.time}</span><span class="dot" style="background:${COLORS[e.type]}"></span>
+     ${e.type} #${e.id}<span class="hint">@ ${e.video_time}</span><span class="d ${e.direction}">${e.direction.toUpperCase()}</span></div>`).join('')
+    : '<div class="empty">No vehicles have crossed the line yet.</div>';
+}
+
+async function poll() {
+  try {
+    const r = await fetch('/api/stats', {cache: 'no-store'});
+    render(await r.json());
+    if (offlineSince) { offlineSince = null; reconnectFeed(); }
+  } catch (e) {
+    if (!offlineSince) offlineSince = Date.now();
+    $('status').className = 'pill offline'; $('status').textContent = 'Server offline';
+    const b = $('banner'); b.className = 'banner'; b.style.display = 'block';
+    b.textContent = 'Lost connection to the VisionTrack server. Reconnecting automatically... (make sure run.bat is still open)';
+  }
+  setTimeout(poll, 700);
+}
+
+function reconnectFeed() { $('feed').src = '/video_feed?t=' + Date.now(); }
+$('feed').addEventListener('error', () => setTimeout(reconnectFeed, 2000));
+
+// ---- counting line: click two points on the video
+$('btn-line').onclick = () => {
+  settingLine = !settingLine; linePts = [];
+  $('btn-line').classList.toggle('active', settingLine);
+  $('vwrap').classList.toggle('setting', settingLine);
+  $('line-hint').textContent = settingLine ? 'Click the START point of the line on the video, then the END point.' : '';
+  drawLine(null);
+};
+$('vwrap').addEventListener('click', async ev => {
+  if (!settingLine) return;
+  const r = $('feed').getBoundingClientRect();
+  const x = Math.min(1, Math.max(0, (ev.clientX - r.left) / r.width));
+  const y = Math.min(1, Math.max(0, (ev.clientY - r.top) / r.height));
+  linePts.push(x, y);
+  if (linePts.length === 2) { $('line-hint').textContent = 'Now click the END point.'; }
+  if (linePts.length === 4) {
+    drawLine(linePts, true);
+    const j = await post('/api/line', {line: linePts});
+    if (j.ok) toast('Counting line saved. Vehicles crossing it will be counted.');
+    settingLine = false; $('btn-line').classList.remove('active'); $('vwrap').classList.remove('setting');
+    $('line-hint').textContent = ''; setTimeout(() => drawLine(null), 1500);
+  }
+});
+
+$('btn-pause').onclick = () => post('/api/pause', {paused: !state.paused});
+$('btn-reset').onclick = () => { if (confirm('Reset all counts to zero?')) post('/api/reset').then(j => j.ok && toast('Counts reset')); };
+$('mode').onchange = e => post('/api/mode', {mode: e.target.value}).then(j => j.ok && toast('Switching model... this can take a moment the first time.'));
+$('conf').oninput = e => {
+  $('conf-val').textContent = Number(e.target.value).toFixed(2);
+  clearTimeout(confTimer);
+  confTimer = setTimeout(() => { post('/api/confidence', {confidence: Number(e.target.value)}); confTimer = null; }, 300);
+};
+$('btn-use').onclick = () => { const v = $('videos').value; if (v) post('/api/source', {source: v}).then(j => j.ok && toast('Playing ' + v)); };
+$('btn-live').onclick = () => { const v = $('live').value.trim() || '0'; post('/api/source', {source: v}).then(j => j.ok && toast('Connecting to ' + v)); };
+
+$('file').onchange = () => {
+  const f = $('file').files[0]; if (!f) return;
+  const fd = new FormData(); fd.append('video', f);
+  const xhr = new XMLHttpRequest(); const prog = $('prog');
+  prog.style.display = 'block';
+  xhr.upload.onprogress = e => { if (e.lengthComputable) prog.firstElementChild.style.width = (100 * e.loaded / e.total) + '%'; };
+  xhr.onload = () => {
+    prog.style.display = 'none'; prog.firstElementChild.style.width = '0';
+    let j = {}; try { j = JSON.parse(xhr.responseText); } catch (e) {}
+    if (j.ok) {
+      toast('Uploaded. Now analysing ' + f.name);
+      const opt = new Option(j.source.replace('videos/', ''), j.source.replace('videos/', ''));
+      const sel = $('videos'); [...sel.options].forEach(o => { if (!o.value || o.value === opt.value) o.remove(); });
+      sel.add(opt); sel.value = opt.value;
+    } else toast('Upload failed: ' + (j.error || xhr.status), 4000);
+    $('file').value = '';
+  };
+  xhr.onerror = () => { prog.style.display = 'none'; toast('Upload failed - server not reachable'); };
+  xhr.open('POST', '/api/upload'); xhr.send(fd);
+};
+
+// show the current counting line when hovering the video
+$('vwrap').addEventListener('mouseenter', () => { if (!settingLine && state.line) drawLine(state.line, true); });
+$('vwrap').addEventListener('mouseleave', () => { if (!settingLine) drawLine(null); });
+
+poll();
+</script>
+<script src="https://api.omnihandai.com/widget.js" data-agent-key="pk_PSgZqrI6s7SdTBNv5r3d-Q" defer></script>
+</body>
+</html>

@@ -1,0 +1,41 @@
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+
+# YOLO models (downloaded automatically)
+models/*.pt
+models/*_openvino_model/
+
+# Videos (user content, too large for git)
+videos/*.mp4
+videos/*.avi
+videos/*.mkv
+videos/*.mov
+videos/*.wmv
+
+# Logs
+logs/
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Config (user-specific settings)
+config.json

@@ -1,0 +1,8 @@
+# ByteTrack settings tuned for traffic video (VisionTrack AI v2)
+tracker_type: bytetrack
+track_high_thresh: 0.25   # boxes above this are matched first
+track_low_thresh: 0.1     # weaker boxes still keep existing tracks alive (helps with occlusion)
+new_track_thresh: 0.35    # a new ID is only created for a confident detection (fewer ghost IDs)
+track_buffer: 60          # keep a lost vehicle's ID for ~2 s so it gets the same ID when it reappears
+match_thresh: 0.85        # more tolerant matching for fast-moving vehicles
+fuse_score: True
