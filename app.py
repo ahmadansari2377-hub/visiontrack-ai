@@ -34,7 +34,7 @@ DEFAULT_CONFIG = {
     "line": [0.05, 0.6, 0.95, 0.6],
     "loop": True,
     "use_openvino": True,
-    "host": "127.0.0.1",
+    "host": "0.0.0.0",
     "port": 5000,
 }
 ALLOWED_EXT = {".mp4", ".avi", ".mov", ".mkv", ".webm", ".m4v", ".wmv"}
